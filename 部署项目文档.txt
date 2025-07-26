@@ -1,0 +1,716 @@
+# 基于Spring Boot的出入库管理系统
+
+下面我将设计一个完整的出入库管理系统，采用Spring Boot 3.2.0，Thymeleaf模板引擎实现前后端不分离，MySQL作为数据库。
+
+## 系统设计
+
+### 功能模块
+1. **商品管理** - 管理库存商品信息
+2. **入库管理** - 处理商品入库操作
+3. **出库管理** - 处理商品出库操作
+4. **库存查询** - 查看当前库存情况
+5. **操作记录** - 查看所有出入库历史
+
+### 技术栈
+- Spring Boot 3.2.0
+- Spring Data JPA
+- Thymeleaf 3.1.2
+- MySQL 8.x
+- Bootstrap 5.3 前端框架
+
+## 实现方案
+
+
+### 项目结构
+```
+src/main/java
+└── com
+    └── example
+        └── inventory
+            ├── config
+            ├── controller
+            ├── entity
+            ├── repository
+            ├── service
+            └── InventoryApplication.java
+src/main/resources
+├── static
+│   ├── css
+│   ├── js
+│   └── images
+├── templates
+│   ├── layout
+│   ├── product
+│   ├── warehouse
+│   ├── stock
+│   └── inventory
+└── application.properties
+```
+
+### 核心代码实现
+
+#### 1. 配置文件 (application.properties)
+```properties
+# Spring Boot 3.2.0
+spring.datasource.url=jdbc:mysql://localhost:3306/inventory_system?useSSL=false&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=yourpassword
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+
+# JPA
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.database-platform=org.hibernate.dialect.MySQL8Dialect
+
+# Thymeleaf
+spring.thymeleaf.cache=false
+spring.thymeleaf.prefix=classpath:/templates/
+spring.thymeleaf.suffix=.html
+spring.thymeleaf.mode=HTML
+spring.thymeleaf.encoding=UTF-8
+```
+
+#### 2. 实体类
+```java
+// Product.java
+@Entity
+public class Product {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    private String description;
+    private String category;
+    
+    @Column(name = "unit_price", nullable = false)
+    private BigDecimal unitPrice;
+    
+    @Column(nullable = false)
+    private String unit;
+    
+    @Column(name = "created_at")
+    private LocalDateTime createdAt;
+    
+    // Getters and Setters
+}
+
+// Warehouse.java
+@Entity
+public class Warehouse {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    private String location;
+    private Integer capacity;
+    
+    // Getters and Setters
+}
+
+// StockIn.java
+@Entity
+@Table(name = "stock_in")
+public class StockIn {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @ManyToOne
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+    
+    @ManyToOne
+    @JoinColumn(name = "warehouse_id", nullable = false)
+    private Warehouse warehouse;
+    
+    @Column(nullable = false)
+    private Integer quantity;
+    
+    @Column(nullable = false)
+    private String operator;
+    
+    @Column(name = "in_time")
+    private LocalDateTime inTime;
+    
+    private String notes;
+    
+    // Getters and Setters
+}
+
+// Inventory.java
+@Entity
+public class Inventory {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @ManyToOne
+    @JoinColumn(name = "product_id", nullable = false)
+    private Product product;
+    
+    @ManyToOne
+    @JoinColumn(name = "warehouse_id", nullable = false)
+    private Warehouse warehouse;
+    
+    @Column(nullable = false)
+    private Integer quantity;
+    
+    @Column(name = "last_updated")
+    private LocalDateTime lastUpdated;
+    
+    // Getters and Setters
+}
+```
+
+#### 3. Repository接口
+```java
+public interface ProductRepository extends JpaRepository<Product, Long> {
+    List<Product> findByNameContaining(String name);
+}
+
+public interface WarehouseRepository extends JpaRepository<Warehouse, Long> {
+    List<Warehouse> findByNameContaining(String name);
+}
+
+public interface StockInRepository extends JpaRepository<StockIn, Long> {
+    List<StockIn> findByProductId(Long productId);
+    List<StockIn> findByWarehouseId(Long warehouseId);
+}
+
+public interface InventoryRepository extends JpaRepository<Inventory, Long> {
+    Optional<Inventory> findByProductAndWarehouse(Product product, Warehouse warehouse);
+    List<Inventory> findByWarehouse(Warehouse warehouse);
+}
+```
+
+#### 4. Service层
+```java
+@Service
+public class InventoryService {
+    @Autowired
+    private InventoryRepository inventoryRepository;
+    
+    @Autowired
+    private ProductRepository productRepository;
+    
+    @Autowired
+    private WarehouseRepository warehouseRepository;
+    
+    @Transactional
+    public void stockIn(StockIn stockIn) {
+        // 更新库存
+        Inventory inventory = inventoryRepository
+            .findByProductAndWarehouse(stockIn.getProduct(), stockIn.getWarehouse())
+            .orElseGet(() -> {
+                Inventory newInventory = new Inventory();
+                newInventory.setProduct(stockIn.getProduct());
+                newInventory.setWarehouse(stockIn.getWarehouse());
+                newInventory.setQuantity(0);
+                return newInventory;
+            });
+        
+        inventory.setQuantity(inventory.getQuantity() + stockIn.getQuantity());
+        inventory.setLastUpdated(LocalDateTime.now());
+        inventoryRepository.save(inventory);
+    }
+    
+    @Transactional
+    public void stockOut(StockOut stockOut) {
+        Inventory inventory = inventoryRepository
+            .findByProductAndWarehouse(stockOut.getProduct(), stockOut.getWarehouse())
+            .orElseThrow(() -> new RuntimeException("库存不足"));
+        
+        if (inventory.getQuantity() < stockOut.getQuantity()) {
+            throw new RuntimeException("库存不足");
+        }
+        
+        inventory.setQuantity(inventory.getQuantity() - stockOut.getQuantity());
+        inventory.setLastUpdated(LocalDateTime.now());
+        inventoryRepository.save(inventory);
+    }
+    
+    public List<Inventory> getInventoryByWarehouse(Long warehouseId) {
+        Warehouse warehouse = warehouseRepository.findById(warehouseId)
+            .orElseThrow(() -> new RuntimeException("仓库不存在"));
+        return inventoryRepository.findByWarehouse(warehouse);
+    }
+}
+```
+
+#### 5. Controller层
+```java
+@Controller
+@RequestMapping("/products")
+public class ProductController {
+    
+    @Autowired
+    private ProductRepository productRepository;
+    
+    @GetMapping
+    public String listProducts(Model model) {
+        model.addAttribute("products", productRepository.findAll());
+        return "product/list";
+    }
+    
+    @GetMapping("/create")
+    public String createForm(Model model) {
+        model.addAttribute("product", new Product());
+        return "product/form";
+    }
+    
+    @PostMapping("/save")
+    public String saveProduct(@ModelAttribute Product product) {
+        product.setCreatedAt(LocalDateTime.now());
+        productRepository.save(product);
+        return "redirect:/products";
+    }
+    
+    @GetMapping("/edit/{id}")
+    public String editForm(@PathVariable Long id, Model model) {
+        Product product = productRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("产品不存在"));
+        model.addAttribute("product", product);
+        return "product/form";
+    }
+    
+    @GetMapping("/delete/{id}")
+    public String deleteProduct(@PathVariable Long id) {
+        productRepository.deleteById(id);
+        return "redirect:/products";
+    }
+}
+```
+
+### 前端实现 (Thymeleaf模板)
+
+#### 1. 布局文件 (layout.html)
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>出入库管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        body {
+            padding-top: 56px;
+            background-color: #f8f9fa;
+        }
+        .sidebar {
+            position: fixed;
+            top: 56px;
+            bottom: 0;
+            left: 0;
+            z-index: 100;
+            padding: 20px 0;
+            background-color: #343a40;
+            color: white;
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,.5);
+        }
+        .sidebar .nav-link:hover {
+            color: rgba(255,255,255,.75);
+        }
+        .sidebar .nav-link.active {
+            color: #fff;
+        }
+        .main-content {
+            margin-left: 200px;
+            padding: 20px;
+        }
+        .dashboard-card {
+            transition: transform 0.2s;
+        }
+        .dashboard-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,.1);
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-box-seam"></i> 出入库管理系统
+            </a>
+            <div class="d-flex">
+                <span class="navbar-text me-3">
+                    <i class="bi bi-person-circle"></i> 管理员
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 侧边栏 -->
+    <div class="sidebar" style="width: 200px;">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <a class="nav-link" href="/dashboard">
+                    <i class="bi bi-speedometer2 me-2"></i> 仪表盘
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/products">
+                    <i class="bi bi-box me-2"></i> 商品管理
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/warehouses">
+                    <i class="bi bi-house-door me-2"></i> 仓库管理
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/stock/in">
+                    <i class="bi bi-arrow-down-circle me-2"></i> 入库管理
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/stock/out">
+                    <i class="bi bi-arrow-up-circle me-2"></i> 出库管理
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/inventory">
+                    <i class="bi bi-clipboard-data me-2"></i> 库存查询
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="/transactions">
+                    <i class="bi bi-list-check me-2"></i> 操作记录
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <!-- 主内容区域 -->
+    <div class="main-content">
+        <div layout:fragment="content"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+```
+
+#### 2. 仪表盘页面 (dashboard.html)
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      layout:decorate="~{layout}">
+<head>
+    <title>仪表盘</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="container-fluid">
+            <h2 class="mb-4">系统概览</h2>
+            
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-white bg-primary dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title">商品总数</h5>
+                            <p class="card-text display-4" th:text="${productCount}">0</p>
+                        </div>
+                        <div class="card-footer">
+                            <i class="bi bi-box"></i> 商品管理
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-success dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title">仓库数量</h5>
+                            <p class="card-text display-4" th:text="${warehouseCount}">0</p>
+                        </div>
+                        <div class="card-footer">
+                            <i class="bi bi-house-door"></i> 仓库管理
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-info dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title">本月入库</h5>
+                            <p class="card-text display-4" th:text="${inCount}">0</p>
+                        </div>
+                        <div class="card-footer">
+                            <i class="bi bi-arrow-down-circle"></i> 入库管理
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-warning dashboard-card">
+                        <div class="card-body">
+                            <h5 class="card-title">本月出库</h5>
+                            <p class="card-text display-4" th:text="${outCount}">0</p>
+                        </div>
+                        <div class="card-footer">
+                            <i class="bi bi-arrow-up-circle"></i> 出库管理
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>最近入库记录</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>商品</th>
+                                        <th>仓库</th>
+                                        <th>数量</th>
+                                        <th>时间</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="stock : ${recentStockIns}">
+                                        <td th:text="${stock.product.name}"></td>
+                                        <td th:text="${stock.warehouse.name}"></td>
+                                        <td th:text="${stock.quantity}"></td>
+                                        <td th:text="${#temporals.format(stock.inTime, 'yyyy-MM-dd HH:mm')}"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>库存预警</h5>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>商品</th>
+                                        <th>仓库</th>
+                                        <th>库存量</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr th:each="inv : ${lowInventory}" th:class="${inv.quantity < 10} ? 'table-warning' : ''">
+                                        <td th:text="${inv.product.name}"></td>
+                                        <td th:text="${inv.warehouse.name}"></td>
+                                        <td th:text="${inv.quantity}"></td>
+                                        <td>
+                                            <span th:if="${inv.quantity < 5}" class="badge bg-danger">紧急</span>
+                                            <span th:if="${inv.quantity >= 5 and inv.quantity < 10}" class="badge bg-warning">警告</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+```
+
+#### 3. 库存查询页面 (inventory.html)
+```html
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      layout:decorate="~{layout}">
+<head>
+    <title>库存查询</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="container-fluid">
+            <h2 class="mb-4">库存查询</h2>
+            
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">库存列表</h5>
+                        <div>
+                            <select class="form-select me-2 d-inline-block w-auto" id="warehouseFilter">
+                                <option value="all">所有仓库</option>
+                                <option th:each="wh : ${warehouses}" 
+                                        th:value="${wh.id}" 
+                                        th:text="${wh.name}"></option>
+                            </select>
+                            <button class="btn btn-primary" id="exportBtn">
+                                <i class="bi bi-download"></i> 导出
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>商品名称</th>
+                                <th>仓库</th>
+                                <th>库存量</th>
+                                <th>单位</th>
+                                <th>单价</th>
+                                <th>总价值</th>
+                                <th>最后更新</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="inv : ${inventoryList}">
+                                <td th:text="${inv.product.name}"></td>
+                                <td th:text="${inv.warehouse.name}"></td>
+                                <td th:text="${inv.quantity}"></td>
+                                <td th:text="${inv.product.unit}"></td>
+                                <td th:text="${#numbers.formatCurrency(inv.product.unitPrice)}">¥0.00</td>
+                                <td th:text="${#numbers.formatCurrency(inv.quantity * inv.product.unitPrice)}">¥0.00</td>
+                                <td th:text="${#temporals.format(inv.lastUpdated, 'yyyy-MM-dd HH:mm')}"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div class="d-flex justify-content-end">
+                        <nav>
+                            <ul class="pagination">
+                                <li class="page-item"><a class="page-link" href="#">上一页</a></li>
+                                <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                <li class="page-item"><a class="page-link" href="#">2</a></li>
+                                <li class="page-item"><a class="page-link" href="#">3</a></li>
+                                <li class="page-item"><a class="page-link" href="#">下一页</a></li>
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5>库存分布统计</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <canvas id="inventoryChart" width="400" height="300"></canvas>
+                        </div>
+                        <div class="col-md-6">
+                            <canvas id="valueChart" width="400" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                // 库存数量图表
+                const invCtx = document.getElementById('inventoryChart').getContext('2d');
+                const inventoryChart = new Chart(invCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['商品A', '商品B', '商品C', '商品D', '商品E'],
+                        datasets: [{
+                            label: '库存数量',
+                            data: [120, 190, 80, 150, 90],
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: '各商品库存数量'
+                            }
+                        }
+                    }
+                });
+                
+                // 库存价值图表
+                const valueCtx = document.getElementById('valueChart').getContext('2d');
+                const valueChart = new Chart(valueCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['仓库A', '仓库B', '仓库C', '仓库D'],
+                        datasets: [{
+                            label: '库存价值',
+                            data: [12500, 18900, 7800, 15300],
+                            backgroundColor: [
+                                'rgba(255, 99, 132, 0.5)',
+                                'rgba(75, 192, 192, 0.5)',
+                                'rgba(153, 102, 255, 0.5)',
+                                'rgba(255, 159, 64, 0.5)'
+                            ],
+                            borderColor: [
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(153, 102, 255, 1)',
+                                'rgba(255, 159, 64, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: '各仓库库存价值分布'
+                            }
+                        }
+                    }
+                });
+            });
+        </script>
+    </div>
+</body>
+</html>
+```
+
+
+
+
+## 系统特点
+
+1. **现代化技术栈**：
+   - Spring Boot 3.2.0
+   - Java 17
+   - MySQL 8.x
+   - Bootstrap 5.3
+
+2. **完整功能**：
+   - 商品管理
+   - 仓库管理
+   - 入库/出库操作
+   - 实时库存更新
+   - 操作记录追踪
+   - 库存预警
+
+3. **用户友好界面**：
+   - 响应式设计
+   - 直观的仪表盘
+   - 数据可视化
+   - 操作便捷的表单
+
+4. **数据完整性**：
+   - 事务管理确保数据一致性
+   - 库存自动更新机制
+   - 外键约束保证数据关系
+
+这个系统提供了完整的出入库管理功能，适合中小型企业用于库存管理，具有易于部署、使用简单的特点。

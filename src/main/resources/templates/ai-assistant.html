@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>AI助手</title>
+    <link rel="stylesheet" th:href="@{/css/styles.css}">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --success-color: #4cc9f0;
+            --user-msg-bg: #4361ee;
+            --ai-msg-bg: #f8f9fa;
+            --border-color: #e0e0e0;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .chat-container {
+            height: 60vh;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #fff;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .message-container {
+            display: flex;
+            flex-direction: column;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-message-container {
+            align-items: flex-end;
+        }
+
+        .ai-message-container {
+            align-items: flex-start;
+        }
+
+        .user-message {
+            background-color: var(--user-msg-bg);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 18px 18px 4px 18px;
+            max-width: 80%;
+            box-shadow: var(--shadow);
+        }
+
+        .ai-message {
+            background-color: var(--ai-msg-bg);
+            padding: 12px 16px;
+            border-radius: 18px 18px 18px 4px;
+            max-width: 80%;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            font-weight: bold;
+        }
+
+        .user-message .message-header {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .ai-message .message-header {
+            color: var(--secondary-color);
+        }
+
+        .avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            font-weight: bold;
+        }
+
+        .user-avatar {
+            background-color: #fff;
+            color: var(--user-msg-bg);
+        }
+
+        .ai-avatar {
+            background-color: var(--success-color);
+            color: white;
+        }
+
+        .timestamp {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            margin-left: 8px;
+        }
+
+        .input-container {
+            position: relative;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-container input {
+            flex: 1;
+            padding: 12px 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            font-size: 1rem;
+            box-shadow: var(--shadow);
+            transition: border-color 0.3s;
+        }
+
+        .input-container input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2);
+        }
+
+        .send-button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 46px;
+            height: 46px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow);
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        .send-button:hover {
+            background-color: var(--secondary-color);
+            transform: scale(1.05);
+        }
+
+        .send-button:active {
+            transform: scale(0.95);
+        }
+
+        .typing-indicator {
+            display: none;
+            background-color: var(--ai-msg-bg);
+            padding: 12px 16px;
+            border-radius: 18px 18px 18px 4px;
+            max-width: 80px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            background-color: var(--text-secondary);
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+            animation: bounce 1.3s linear infinite;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.15s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-5px); }
+        }
+
+        .result-table {
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+
+        .result-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .result-table th {
+            background-color: var(--primary-color);
+            color: white;
+            text-align: left;
+            padding: 12px;
+        }
+
+        .result-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .result-table tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        .result-table tr:hover {
+            background-color: #e9f0ff;
+        }
+
+        .alert {
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+
+        .welcome-message {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4edf9 100%);
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .welcome-message h3 {
+            color: var(--primary-color);
+            margin-bottom: 15px;
+        }
+
+        .examples {
+            text-align: left;
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+            border-left: 4px solid var(--success-color);
+        }
+
+        .examples h5 {
+            color: var(--secondary-color);
+            margin-bottom: 10px;
+        }
+
+        .examples ul {
+            padding-left: 20px;
+        }
+
+        .examples li {
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .thinking-process {
+            background-color: lightblue;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+
+        .collapsible {
+            background-color: #e9ecef;
+            color: #495057;
+            cursor: pointer;
+            padding: 10px 15px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: 5px;
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .collapsible:hover {
+            background-color: #dde0e3;
+        }
+
+        .collapsible-icon {
+            transition: transform 0.3s;
+        }
+
+        .collapsible.active .collapsible-icon {
+            transform: rotate(180deg);
+        }
+
+        .collapsible-content {
+            padding: 0 15px;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background-color: #f8f9fa;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .collapsible-content.show {
+            max-height: 1000px; /* 足够大的值以容纳内容 */
+            padding: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="container-fluid">
+            <h2 class="mb-4">AI助手</h2>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="chat-container" id="chatContainer">
+                            <!-- 欢迎消息 -->
+                            <div class="message-container ai-message-container">
+                                <div class="ai-message">
+                                    <div class="message-header">
+                                        <div class="avatar ai-avatar">AI</div>
+                                        <span>AI助手</span>
+                                    </div>
+                                    <div class="welcome-message">
+                                        <h3>您好！我是库存管理AI助手</h3>
+                                        <p>您可以使用自然语言查询库存信息或执行出入库操作</p>
+
+                                        <div class="examples">
+                                            <h5>示例指令：</h5>
+                                            <ul>
+                                                <li>查询所有商品名称</li>
+                                                <li>查询商品"MacBook Pro 16"在各个仓库的库存情况</li>
+                                                <li>将商品"iPhone 15 Pro"入库50个到仓库"华东主仓"</li>
+                                                <li>从仓库"华南备件仓"出库20个商品"清风抽纸"</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="timestamp" th:text="${#temporals.format(#temporals.createNow(), 'HH:mm')}"></div>
+                                </div>
+                            </div>
+
+                            <!-- 显示历史消息 -->
+                            <div th:if="${result != null}" th:data-result="${@com.fasterxml.jackson.databind.ObjectMapper@writeValueAsString(result)}" style="display:none;"></div>
+
+                            <!-- AI回复消息 -->
+                            <div th:if="${result != null and userInput != null}" class="message-container ai-message-container">
+                                <div class="ai-message">
+                                    <div class="message-header">
+                                        <div class="avatar ai-avatar">AI</div>
+                                        <span>AI助手</span>
+                                    </div>
+                                    <div th:if="${result instanceof T(java.util.Map)}">
+                                        <div th:if="${result.thinkingProcess != null and !result.thinkingProcess.isEmpty()}">
+                                            <!-- 可折叠的思考过程 -->
+                                            <button class="collapsible">
+                                                思考过程 <span class="collapsible-icon">▼</span>
+                                            </button>
+                                            <div class="collapsible-content">
+                                                <p th:text="${result.thinkingProcess}" style="white-space: pre-line;"></p>
+                                            </div>
+                                        </div>
+
+                                        <div th:if="${result.sql != null}">
+                                            <h6>执行的SQL:</h6>
+                                            <pre><code th:text="${result.sql}" class="sql-code"></code></pre>
+                                        </div>
+
+                                        <div th:if="${result.result != null}">
+                                            <h6>执行结果:</h6>
+                                            <div th:if="${result.result instanceof T(java.util.List)}">
+                                                <table class="result-table" th:if="${!result.result.empty}">
+                                                    <thead>
+                                                        <tr>
+                                                            <th th:each="key : ${result.result[0].keySet()}" th:text="${key}"></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <tr th:each="row : ${result.result}">
+                                                            <td th:each="key : ${result.result[0].keySet()}" th:text="${row[key]}"></td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                                <p th:if="${result.result.empty}">没有找到匹配的数据</p>
+                                            </div>
+                                            <div th:if="${result.result instanceof T(java.util.Map)}">
+                                                <p th:text="${result.result.message}"></p>
+                                                <p>影响行数: <span th:text="${result.result.rowsAffected}"></span></p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div th:if="${result instanceof T(java.lang.String)} and ${!result.contains('操作成功')} and ${!(result instanceof T(java.util.Map))}">
+                                        <p th:text="${result}"></p>
+                                    </div>
+
+                                    <div class="timestamp" th:text="${#temporals.format(#temporals.createNow(), 'HH:mm')}"></div>
+                                </div>
+                            </div>
+
+                            <!-- 正在输入指示器 -->
+                            <div class="typing-indicator" id="typingIndicator">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+
+                        <form id="aiForm" th:action="@{/ai-assistant/query}" method="post">
+                            <div class="input-container">
+                                <input type="text" class="form-control"
+                                       name="userInput" id="userInput"
+                                       placeholder="输入自然语言指令..."
+                                       aria-label="输入自然语言指令">
+                                <button class="send-button" type="submit" id="sendButton">
+                                    <i class="bi bi-send"></i>
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <th:block layout:fragment="scripts">
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const chatContainer = document.getElementById('chatContainer');
+                const userInput = document.getElementById('userInput');
+                const aiForm = document.getElementById('aiForm');
+                const typingIndicator = document.getElementById('typingIndicator');
+
+                // 初始化已存在的折叠面板
+                initCollapsible();
+
+                // 滚动到底部
+                function scrollToBottom() {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+
+                // 页面加载时滚动到底部
+                scrollToBottom();
+
+                // 初始化折叠面板功能
+                function initCollapsible() {
+                    const coll = document.getElementsByClassName("collapsible");
+                    for (let i = 0; i < coll.length; i++) {
+                        coll[i].addEventListener("click", function() {
+                            this.classList.toggle("active");
+                            const content = this.nextElementSibling;
+                            if (content.style.maxHeight) {
+                                content.style.maxHeight = null;
+                            } else {
+                                content.style.maxHeight = content.scrollHeight + "px";
+                            }
+                        });
+                    }
+                }
+                // 添加用户消息到聊天窗口
+                function addUserMessage(message) {
+                    // 移除现有的输入指示器
+                    typingIndicator.style.display = 'none';
+
+                    const messageContainer = document.createElement('div');
+                    messageContainer.className = 'message-container user-message-container';
+
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'user-message';
+
+                    const messageHeader = document.createElement('div');
+                    messageHeader.className = 'message-header';
+
+                    const avatar = document.createElement('div');
+                    avatar.className = 'avatar user-avatar';
+                    avatar.textContent = '我';
+
+                    const sender = document.createElement('span');
+                    sender.textContent = '您';
+
+                    const timestamp = document.createElement('div');
+                    timestamp.className = 'timestamp';
+                    timestamp.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+                    messageHeader.appendChild(avatar);
+                    messageHeader.appendChild(sender);
+
+                    const messageContent = document.createElement('span');
+                    messageContent.textContent = message;
+
+                    messageDiv.appendChild(messageHeader);
+                    messageDiv.appendChild(messageContent);
+                    messageDiv.appendChild(timestamp);
+
+                    messageContainer.appendChild(messageDiv);
+                    chatContainer.appendChild(messageContainer);
+
+                    // 滚动到底部
+                    scrollToBottom();
+                }
+
+                // 添加AI消息到聊天窗口
+                function addAiMessage(result, userInput) {
+                    // 移除现有的输入指示器
+                    typingIndicator.style.display = 'none';
+
+                    const messageContainer = document.createElement('div');
+                    messageContainer.className = 'message-container ai-message-container';
+
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'ai-message';
+
+                    const messageHeader = document.createElement('div');
+                    messageHeader.className = 'message-header';
+
+                    const avatar = document.createElement('div');
+                    avatar.className = 'avatar ai-avatar';
+                    avatar.textContent = 'AI';
+
+                    const sender = document.createElement('span');
+                    sender.textContent = 'AI助手';
+
+                    const timestamp = document.createElement('div');
+                    timestamp.className = 'timestamp';
+                    timestamp.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+                    messageHeader.appendChild(avatar);
+                    messageHeader.appendChild(sender);
+
+                    // 首先添加消息头
+                    messageDiv.appendChild(messageHeader);
+
+                    // 处理不同类型的结果
+                    if (result && typeof result === 'object' && result.thinkingProcess !== undefined) {
+                        // 创建可折叠的思考过程
+                        if (result.thinkingProcess) {
+                            const collapsibleButton = document.createElement('button');
+                            collapsibleButton.className = 'collapsible';
+                            collapsibleButton.innerHTML = '思考过程 <span class="collapsible-icon">▼</span>';
+
+                            const collapsibleContent = document.createElement('div');
+                            collapsibleContent.className = 'collapsible-content';
+                            collapsibleContent.innerHTML = '<p style="white-space: pre-line;">' + result.thinkingProcess + '</p>';
+
+                            messageDiv.appendChild(collapsibleButton);
+                            messageDiv.appendChild(collapsibleContent);
+
+                            // 添加折叠功能
+                            collapsibleButton.addEventListener('click', function() {
+                                this.classList.toggle('active');
+                                if (collapsibleContent.style.maxHeight) {
+                                    collapsibleContent.style.maxHeight = null;
+                                } else {
+                                    collapsibleContent.style.maxHeight = collapsibleContent.scrollHeight + "px";
+                                }
+                            });
+                        }
+
+                        // 显示SQL（如果有）
+                        if (result.sql) {
+                            const sqlHeader = document.createElement('h6');
+                            sqlHeader.textContent = '执行的SQL:';
+                            messageDiv.appendChild(sqlHeader);
+
+                            const sqlContent = document.createElement('div');
+                            sqlContent.innerHTML = '<pre><code>' + result.sql + '</code></pre>';
+                            messageDiv.appendChild(sqlContent);
+                        }
+
+                        // 显示结果
+                        const resultHeader = document.createElement('h6');
+                        resultHeader.textContent = '执行结果:';
+                        messageDiv.appendChild(resultHeader);
+
+                        const resultContent = document.createElement('div');
+                        resultContent.className = 'result-content';
+
+                        if (Array.isArray(result.result)) {
+                            if (result.result.length > 0) {
+                                // 创建结果表格
+                                const table = document.createElement('table');
+                                table.className = 'result-table table table-striped';
+
+                                // 表头
+                                const thead = document.createElement('thead');
+                                const headerRow = document.createElement('tr');
+                                const firstRow = result.result[0];
+                                for (const key in firstRow) {
+                                    const th = document.createElement('th');
+                                    th.textContent = key;
+                                    headerRow.appendChild(th);
+                                }
+                                thead.appendChild(headerRow);
+                                table.appendChild(thead);
+
+                                // 表体
+                                const tbody = document.createElement('tbody');
+                                result.result.forEach(row => {
+                                    const tr = document.createElement('tr');
+                                    for (const key in row) {
+                                        const td = document.createElement('td');
+                                        td.textContent = row[key];
+                                        tr.appendChild(td);
+                                    }
+                                    tbody.appendChild(tr);
+                                });
+                                table.appendChild(tbody);
+
+                                resultContent.appendChild(table);
+                            } else {
+                                resultContent.innerHTML = '<p>没有找到匹配的数据</p>';
+                            }
+                        } else if (result.result && typeof result.result === 'object') {
+                            // 操作结果（如INSERT/UPDATE）
+                            const messagePara = document.createElement('p');
+                            messagePara.textContent = result.result.message;
+                            resultContent.appendChild(messagePara);
+
+                            const rowsPara = document.createElement('p');
+                            rowsPara.textContent = '影响行数: ' + result.result.rowsAffected;
+                            resultContent.appendChild(rowsPara);
+                        }
+
+                        messageDiv.appendChild(resultContent);
+                    } else if (typeof result === 'string') {
+                        // 直接显示字符串结果
+                        const messageContent = document.createElement('div');
+                        messageContent.className = 'response-content';
+                        messageContent.innerHTML = '<p>' + result.replace(/\n/g, '<br>') + '</p>';
+                        messageDiv.appendChild(messageContent);
+                    }
+
+                    // 最后添加时间戳
+                    messageDiv.appendChild(timestamp);
+
+                    messageContainer.appendChild(messageDiv);
+                    chatContainer.appendChild(messageContainer);
+
+                    // 滚动到底部
+                    scrollToBottom();
+
+                    // 初始化新添加的折叠面板
+                    initCollapsible();
+                }
+
+                // 显示输入指示器
+                function showTypingIndicator() {
+                    typingIndicator.style.display = 'flex';
+                    scrollToBottom();
+                }
+
+                // 隐藏输入指示器
+                function hideTypingIndicator() {
+                    typingIndicator.style.display = 'none';
+                }
+
+                // 显示加载状态
+                function showLoadingState() {
+                    // 禁用输入框和按钮
+                    userInput.disabled = true;
+                    document.getElementById('sendButton').disabled = true;
+                    userInput.placeholder = "AI助手正在处理您的请求...";
+                }
+
+                // 隐藏加载状态
+                function hideLoadingState() {
+                    // 启用输入框和按钮
+                    userInput.disabled = false;
+                    document.getElementById('sendButton').disabled = false;
+                    userInput.placeholder = "输入自然语言指令...";
+                    userInput.focus();
+                }
+
+                // 显示错误消息
+                function showErrorMessage(message) {
+                    typingIndicator.style.display = 'none';
+
+                    const messageContainer = document.createElement('div');
+                    messageContainer.className = 'message-container ai-message-container';
+
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'ai-message';
+
+                    const messageHeader = document.createElement('div');
+                    messageHeader.className = 'message-header';
+
+                    const avatar = document.createElement('div');
+                    avatar.className = 'avatar ai-avatar';
+                    avatar.textContent = 'AI';
+
+                    const sender = document.createElement('span');
+                    sender.textContent = 'AI助手';
+
+                    const timestamp = document.createElement('div');
+                    timestamp.className = 'timestamp';
+                    timestamp.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+                    messageHeader.appendChild(avatar);
+                    messageHeader.appendChild(sender);
+
+                    const messageContent = document.createElement('div');
+                    messageContent.className = 'alert alert-danger';
+                    messageContent.innerHTML = '<strong>错误:</strong> ' + message;
+
+                    messageDiv.appendChild(messageHeader);
+                    messageDiv.appendChild(messageContent);
+                    messageDiv.appendChild(timestamp);
+
+                    messageContainer.appendChild(messageDiv);
+                    chatContainer.appendChild(messageContainer);
+
+                    // 滚动到底部
+                    scrollToBottom();
+                }
+
+                // 表单提交处理
+                aiForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    if (userInput.value.trim() === '') {
+                        return;
+                    }
+
+                    const message = userInput.value;
+
+                    // 添加用户消息
+                    addUserMessage(message);
+
+                    // 清空输入框
+                    userInput.value = '';
+
+                    // 显示加载状态
+                    showLoadingState();
+                    showTypingIndicator();
+
+                    // 发送请求到服务器
+                    fetch('/ai-assistant/query', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: 'userInput=' + encodeURIComponent(message)
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('网络响应错误: ' + response.status);
+                        }
+                        return response.json(); // 直接解析JSON
+                    })
+                    .then(data => {
+                        if (data.error) {
+                            showErrorMessage(data.error);
+                        } else {
+                            addAiMessage(data, message);
+                        }
+                        hideLoadingState();
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showErrorMessage("请求失败: " + error.message);
+                        hideLoadingState();
+                    });
+                });
+
+                // 允许通过Ctrl+Enter发送消息
+                userInput.addEventListener('keydown', function(e) {
+                    if (e.ctrlKey && e.key === 'Enter') {
+                        aiForm.dispatchEvent(new Event('submit'));
+                    }
+                });
+            });
+        </script>
+    </th:block>
+</body>
+</html>

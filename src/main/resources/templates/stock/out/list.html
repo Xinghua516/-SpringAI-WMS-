@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>出库管理</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="container-fluid">
+            <h2 class="mb-4">出库管理</h2>
+            
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">出库记录</h5>
+                    <a href="/stock/out/create" class="btn btn-primary">
+                        <i class="bi bi-plus-circle"></i> 添加出库
+                    </a>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>商品</th>
+                                <th>仓库</th>
+                                <th>数量</th>
+                                <th>操作员</th>
+                                <th>出库时间</th>
+                                <th>备注</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="stockOut : ${stockOuts}">
+                                <td th:text="${stockOut.id}"></td>
+                                <td th:text="${stockOut.product?.name ?: '未知商品'}"></td>
+                                <td th:text="${stockOut.warehouse?.name ?: '未知仓库'}"></td>
+                                <td th:text="${stockOut.quantity}"></td>
+                                <td th:text="${stockOut.operator}"></td>
+                                <td th:text="${#temporals.format(stockOut.outTime, 'yyyy-MM-dd HH:mm')}"></td>
+                                <td th:text="${stockOut.notes ?: '无'}"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

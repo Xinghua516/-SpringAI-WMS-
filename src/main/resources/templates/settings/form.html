@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>系统设置</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="container-fluid">
+            <h2 class="mb-4">系统设置</h2>
+            
+            <!-- 操作成功提示 -->
+            <div th:if="${message}" th:class="${'alert ' + alertClass}" role="alert">
+                <span th:text="${message}"></span>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">AI助手设置</h5>
+                </div>
+                <div class="card-body">
+                    <form id="settingsForm" action="/settings/save" method="post">
+                        <div class="mb-3">
+                            <label for="baseUrl" class="form-label">API基础URL</label>
+                            <input type="text" class="form-control" id="baseUrl" name="baseUrl" 
+                                   th:value="${settings.baseUrl}" required>
+                            <div class="form-text">AI服务的基础URL，例如: http://localhost:1234</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="apiKey" class="form-label">API密钥</label>
+                            <input type="text" class="form-control" id="apiKey" name="apiKey" 
+                                   th:value="${settings.apiKey}" required>
+                            <div class="form-text">访问AI服务所需的API密钥</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="chat.model" class="form-label">模型名称</label>
+                            <input type="text" class="form-control" id="chat.model" name="chat.model" 
+                                   th:value="${settings.chat.model}" required>
+                            <div class="form-text">使用的AI模型名称</div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> 保存设置
+                        </button>
+                        
+                        <a href="/" class="btn btn-secondary">
+                            <i class="bi bi-arrow-left"></i> 返回首页
+                        </a>
+
+                        <div class="mt-3 alert alert-info">
+                            <strong>提示：</strong>保存的设置将持久化存储在配置文件中，即使应用程序重启也会保留。
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <th:block layout:fragment="scripts">
+        <script>
+            // 自动保存功能
+            let saveTimeout;
+            const form = document.getElementById('settingsForm');
+            const inputs = form.querySelectorAll('input');
+
+            // 为每个输入框添加事件监听器
+            inputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    // 清除之前的定时器
+                    clearTimeout(saveTimeout);
+
+                    // 设置新的定时器，延迟保存
+                    saveTimeout = setTimeout(autoSave, 1000);
+                });
+            });
+
+            // 自动保存函数
+            function autoSave() {
+                // 创建FormData对象
+                const formData = new FormData(form);
+
+                // 发送AJAX请求
+                fetch('/settings/save', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        // 显示成功消息
+                        showMessage('设置已自动保存并持久化！', 'alert-success');
+                    } else {
+                        showMessage('自动保存失败，请重试', 'alert-danger');
+                    }
+                })
+                .catch(error => {
+                    showMessage('自动保存出错: ' + error.message, 'alert-danger');
+                });
+            }
+
+            // 显示消息函数
+            function showMessage(message, alertClass) {
+                // 移除旧的消息
+                const oldAlert = document.querySelector('.auto-save-alert');
+                if (oldAlert) {
+                    oldAlert.remove();
+                }
+
+                // 创建新消息
+                const alert = document.createElement('div');
+                alert.className = `alert ${alertClass} auto-save-alert alert-dismissible fade show`;
+                alert.role = 'alert';
+                alert.innerHTML = `
+                    <span>${message}</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                `;
+
+                // 插入到表单前面
+                form.parentNode.insertBefore(alert, form);
+
+                // 3秒后自动隐藏消息
+                setTimeout(() => {
+                    if (alert.parentNode) {
+                        alert.remove();
+                    }
+                }, 3000);
+            }
+
+            // 表单提交处理
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+
+                // 清除自动保存定时器
+                clearTimeout(saveTimeout);
+
+                // 手动保存
+                const formData = new FormData(this);
+
+                fetch('/settings/save', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        showMessage('设置已保存成功并持久化！', 'alert-success');
+                    } else {
+                        showMessage('保存失败，请重试', 'alert-danger');
+                    }
+                })
+                .catch(error => {
+                    showMessage('保存出错: ' + error.message, 'alert-danger');
+                });
+            });
+        </script>
+    </th:block>
+</body>
+</html>
