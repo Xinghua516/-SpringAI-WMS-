@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>商品条形码</title>
+    <style>
+        .barcode-container {
+            text-align: center;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin: 20px auto;
+            max-width: 400px;
+            background: white;
+        }
+        
+        .product-info {
+            margin: 15px 0;
+        }
+        
+        .barcode-display {
+            font-family: "Courier New", monospace;
+            font-size: 24px;
+            letter-spacing: 5px;
+            padding: 10px;
+            border: 1px solid #999;
+            margin: 15px 0;
+            background: #f8f9fa;
+        }
+        
+        .actual-barcode {
+            height: 100px;
+            margin: 20px auto;
+            image-rendering: pixelated;
+        }
+    </style>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="container-fluid">
+            <h2 class="mb-4">商品条形码</h2>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">条形码信息</h5>
+                </div>
+                <div class="card-body">
+                    <div class="barcode-container">
+                        <div class="product-info">
+                            <h4 th:text="${product.name}">商品名称</h4>
+                            <p>分类：<span th:text="${product.category ?: '未分类'}">分类</span></p>
+                        </div>
+                        
+                        <div class="barcode-display" th:text="${product.barcode}">
+                            条形码
+                        </div>
+                        
+                        <!-- 使用在线API生成Code128条形码图片 -->
+                        <img class="actual-barcode" 
+                             th:src="${'https://barcode.tec-it.com/barcode.ashx?data=' + product.barcode + '&code=Code128&translate-esc=on'}"
+                             th:alt="${'条形码: ' + product.barcode}">
+                        
+                        <p class="text-muted">此条形码可用于扫码枪扫描出入库操作</p>
+                        
+                        <div class="d-flex gap-2 justify-content-center">
+                            <a href="/products" class="btn btn-primary">返回商品列表</a>
+                            <button class="btn btn-outline-secondary" onclick="printBarcode()">打印条形码</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+            function printBarcode() {
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <html>
+                        <head>
+                            <title>打印条形码</title>
+                            <style>
+                                body { 
+                                    font-family: Arial, sans-serif; 
+                                    text-align: center;
+                                    padding: 20px;
+                                }
+                                .barcode {
+                                    font-family: "Courier New", monospace;
+                                    font-size: 32px;
+                                    letter-spacing: 8px;
+                                    padding: 20px;
+                                    border: 2px solid #000;
+                                    display: inline-block;
+                                    margin: 20px 0;
+                                }
+                                .product-name {
+                                    font-size: 18px;
+                                    margin-bottom: 10px;
+                                }
+                                .actual-barcode {
+                                    height: 80px;
+                                    margin: 20px auto;
+                                }
+                            </style>
+                        </head>
+                        <body onload="window.print(); window.close()">
+                            <div class="product-name">${document.querySelector('h4').textContent}</div>
+                            <div class="barcode">${document.querySelector('.barcode-display').textContent}</div>
+                            <img class="actual-barcode" src="https://barcode.tec-it.com/barcode.ashx?data=${document.querySelector('.barcode-display').textContent}&code=Code128&translate-esc=on" />
+                            <div>请使用扫码枪扫描上方条形码</div>
+                        </body>
+                    </html>
+                `);
+                printWindow.document.close();
+            }
+        </script>
+    </div>
+</body>
+</html>

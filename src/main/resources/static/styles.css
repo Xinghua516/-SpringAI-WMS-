@@ -1,0 +1,50 @@
+   .thinking-process {
+       background-color: lightblue;
+       padding: 10px;
+       margin-bottom: 10px;
+       border-radius: 5px;
+   }
+
+   .collapsible {
+       background-color: #e9ecef;
+       color: #495057;
+       cursor: pointer;
+       padding: 10px 15px;
+       width: 100%;
+       border: none;
+       text-align: left;
+       outline: none;
+       font-size: 14px;
+       font-weight: 500;
+       border-radius: 5px;
+       margin: 10px 0;
+       display: flex;
+       justify-content: space-between;
+       align-items: center;
+   }
+
+   .collapsible:hover {
+       background-color: #dde0e3;
+   }
+
+   .collapsible-icon {
+       transition: transform 0.3s;
+   }
+
+   .collapsible.active .collapsible-icon {
+       transform: rotate(180deg);
+   }
+
+   .collapsible-content {
+       padding: 0 15px;
+       max-height: 0;
+       overflow: hidden;
+       transition: max-height 0.3s ease-out;
+       background-color: #f8f9fa;
+       border-radius: 0 0 5px 5px;
+   }
+
+   .collapsible-content.show {
+       max-height: 1000px; /* 足够大的值以容纳内容 */
+       padding: 15px;
+   }

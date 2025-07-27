@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>入库管理</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <div class="container-fluid">
+            <h2 class="mb-4">入库管理</h2>
+            
+            <!-- 隐藏的条形码输入框 -->
+            <input type="text" id="barcodeInput" autofocus style="opacity:0; width:1px; position: absolute; left: -1000px;">
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5>添加入库记录</h5>
+                </div>
+                <div class="card-body">
+                    <form th:action="@{/stock/in/save}" method="post">
+                        <input type="hidden" name="id">
+                        
+                        <div class="mb-3">
+                            <label for="product" class="form-label">商品 *</label>
+                            <div class="input-group">
+                                <select class="form-select" id="product" name="product.id" required>
+                                    <option value="">请选择商品</option>
+                                    <option th:each="product : ${products}" 
+                                            th:value="${product.id}" 
+                                            th:text="${product.name}">
+                                    </option>
+                                </select>
+                                <button class="btn btn-outline-secondary" type="button" id="scanProductBtn">
+                                    <i class="bi bi-upc-scan"></i> 扫码
+                                </button>
+                            </div>
+                            <div class="form-text">可以通过扫码枪扫描商品条形码自动选择商品</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="warehouse" class="form-label">仓库 *</label>
+                            <select class="form-select" id="warehouse" name="warehouse.id" required>
+                                <option value="">请选择仓库</option>
+                                <option th:each="warehouse : ${warehouses}" 
+                                        th:value="${warehouse.id}" 
+                                        th:text="${warehouse.name}">
+                                </option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="quantity" class="form-label">数量 *</label>
+                            <input type="number" class="form-control" id="quantity" name="quantity" min="1" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="operator" class="form-label">操作员 *</label>
+                            <input type="text" class="form-control" id="operator" name="operator" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">备注</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="/stock/in" class="btn btn-secondary">
+                                <i class="bi bi-arrow-left"></i> 返回
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-save"></i> 保存
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 扫码枪输入处理
+        document.getElementById('barcodeInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                processBarcode(this.value);
+                this.value = ''; // 清空输入框
+            }
+        });
+        
+        // 点击扫码按钮时聚焦到隐藏输入框
+        document.getElementById('scanProductBtn').addEventListener('click', function() {
+            document.getElementById('barcodeInput').focus();
+        });
+        
+        // 处理条形码扫描结果
+        function processBarcode(barcode) {
+            // 在实际应用中，这里应该发送请求到后端验证条形码
+            // 这里我们模拟通过条形码找到对应的商品
+            fetch('/products/api/by-barcode/' + encodeURIComponent(barcode))
+                .then(response => response.json())
+                .then(data => {
+                    if (data.id) {
+                        // 找到商品，自动选择
+                        document.getElementById('product').value = data.id;
+                        // 给用户反馈
+                        alert('已自动选择商品: ' + data.name);
+                    } else {
+                        alert('未找到对应商品，请检查条形码是否正确');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('扫描处理出错，请重试');
+                });
+        }
+    </script>
+</body>
+</html>
