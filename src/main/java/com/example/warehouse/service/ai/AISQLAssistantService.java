@@ -1,6 +1,9 @@
 package com.example.warehouse.service.ai;
 
 import com.example.warehouse.config.SpringAIProperties;
+import com.example.warehouse.exception.AIServiceException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.ChatClient;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -15,6 +18,8 @@ import java.util.Map;
 
 @Service
 public class AISQLAssistantService {
+
+    private static final Logger logger = LoggerFactory.getLogger(AISQLAssistantService.class);
 
     private ChatClient chatClient;
     private final JdbcTemplate jdbcTemplate;
@@ -184,13 +189,11 @@ public class AISQLAssistantService {
             // 1. 生成完整回答（包括思考过程和可能的SQL）
             String fullResponse = generateFullResponse(userInput);
 
-            // 在控制台输出AI的完整回答
-            System.out.println("=== AI助手完整回答 ===");
-            System.out.println("用户输入: " + userInput);
-            System.out.println("AI回答: " + fullResponse);
-            System.out.println("=====================");
+            // 使用日志记录AI的完整回答
+            logger.info("AI助手完整回答 - 用户输入: {}, AI回答: {}", userInput, fullResponse);
 
             if (fullResponse == null || fullResponse.trim().isEmpty()) {
+                logger.warn("AI助手无法生成有效回答，用户输入: {}", userInput);
                 return "AI助手无法生成回答";
             }
 
@@ -198,7 +201,8 @@ public class AISQLAssistantService {
             return parseAndExecuteResponse(fullResponse);
         } catch (ResourceAccessException e) {
             // 处理AI服务连接异常
-            return "AI服务连接失败：" + e.getMessage();
+            logger.error("AI服务连接失败，用户输入: {}", userInput, e);
+            throw new AIServiceException("AI服务连接失败：" + e.getMessage(), e);
         } catch (Exception e) {
             return "处理出错: " + e.getMessage();
         }
@@ -222,11 +226,12 @@ public class AISQLAssistantService {
                 return response;
             } catch (ResourceAccessException e) {
                 retryCount++;
-                System.err.println("AI服务连接失败，正在进行第 " + retryCount + " 次重试...");
+                logger.warn("AI服务连接失败，正在进行第 {} 次重试...", retryCount);
                 
                 if (retryCount >= maxRetries) {
                     // 处理AI服务连接异常
-                    throw new RuntimeException("AI服务连接失败，已重试 " + maxRetries + " 次仍无法连接，请检查网络或AI服务状态");
+                    logger.error("AI服务连接失败，已重试 {} 次仍无法连接，请检查网络或AI服务状态", maxRetries);
+                    throw new AIServiceException("AI服务连接失败，已重试 " + maxRetries + " 次仍无法连接，请检查网络或AI服务状态");
                 }
                 
                 // 等待一段时间再重试
@@ -234,10 +239,12 @@ public class AISQLAssistantService {
                     Thread.sleep(2000 * retryCount); // 逐步增加等待时间
                 } catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException("重试过程中被中断", ie);
+                    logger.error("重试过程中被中断", ie);
+                    throw new AIServiceException("重试过程中被中断", ie);
                 }
             } catch (Exception e) {
-                throw new RuntimeException("生成回答时出错: " + e.getMessage());
+                logger.error("生成回答时出错", e);
+                throw new AIServiceException("生成回答时出错: " + e.getMessage(), e);
             }
         }
         
@@ -284,8 +291,8 @@ public class AISQLAssistantService {
                         "result", result
                 );
             } catch (Exception e) {
-                System.err.println("解析或执行SQL时出错: " + e.getMessage());
-                return "解析或执行SQL时出错: " + e.getMessage() + "\nAI完整回答: " + fullResponse;
+                logger.error("解析或执行SQL时出错: {}", e.getMessage(), e);
+                throw new AIServiceException("解析或执行SQL时出错: " + e.getMessage(), e);
             }
         } else {
             // 没有SQL，直接返回回答作为对话内容
@@ -416,8 +423,8 @@ public class AISQLAssistantService {
             try {
                 return jdbcTemplate.queryForList(sql);
             } catch (Exception e) {
-                System.err.println("SQL执行错误: " + e.getMessage());
-                throw e;
+                logger.error("SQL执行错误: {}", e.getMessage(), e);
+                throw new AIServiceException("SQL执行错误: " + e.getMessage(), e);
             }
         } else if (lowerCaseSql.startsWith("insert") || 
                    lowerCaseSql.startsWith("update")) {
@@ -430,8 +437,8 @@ public class AISQLAssistantService {
                     "operation", sql.split(" ")[0].toUpperCase()
                 );
             } catch (Exception e) {
-                System.err.println("SQL执行错误: " + e.getMessage());
-                throw e;
+                logger.error("SQL执行错误: {}", e.getMessage(), e);
+                throw new AIServiceException("SQL执行错误: " + e.getMessage(), e);
             }
         } else {
             throw new IllegalArgumentException("不支持的SQL操作类型: " + sql);
